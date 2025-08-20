@@ -1,0 +1,10 @@
+---
+
+- name: Restart services
+  ansible.builtin.command:
+    cmd: docker compose restart
+    chdir: "{{ jenkins_data_dir }}"
+  changed_when: false
+  tags:
+    - jenkins
+    - nginx

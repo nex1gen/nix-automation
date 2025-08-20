@@ -1,0 +1,27 @@
+---
+
+services:
+  jenkins:
+    image: jenkins/jenkins:{{ jenkins_image_tag }}-groupadd
+    build:
+      dockerfile: {{ jenkins_data_dir }}/Dockerfile
+    container_name: jenkins
+    volumes:
+      - {{ jenkins_data_dir }}/jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - $HOME/.docker:/root/.docker:ro
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:{{ jenkins_nginx_image_tag }}
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - {{ jenkins_data_dir }}/nginx/conf.d:/etc/nginx/conf.d
+      - {{ jenkins_data_dir }}/nginx/certs:/etc/nginx/certs
+      - {{ jenkins_data_dir }}/nginx/www:/var/www/certbot
+    restart: unless-stopped
+    depends_on:
+      - jenkins
