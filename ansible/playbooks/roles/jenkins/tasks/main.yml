@@ -1,0 +1,137 @@
+---
+
+- name: Create main directory
+  ansible.builtin.file:
+    path: "{{ jenkins_data_dir }}"
+    state: directory
+    mode: "0755"
+  tags:
+    - jenkins
+    - nginx
+
+- name: Create Nginx directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ jenkins_data_dir }}/nginx"
+    - "{{ jenkins_data_dir }}/nginx/conf.d"
+    - "{{ jenkins_data_dir }}/nginx/certs"
+    - "{{ jenkins_data_dir }}/nginx/www"
+  tags:
+    - nginx
+
+- name: Create Jenkins directories
+  ansible.builtin.file:
+    path: "{{ jenkins_data_dir }}/jenkins_home"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  tags:
+    - jenkins
+
+- name: Install Certbot
+  ansible.builtin.apt:
+    name:
+      - certbot
+    state: present
+  tags:
+    - nginx
+
+- name: Check Nginx
+  ansible.builtin.uri:
+    url: http://127.0.0.1/.well-known/acme-challenge/
+    return_content: false
+    status_code: [200, 404]
+    timeout: 5
+  register: jenkins_nginx_check
+  ignore_errors: true
+  changed_when: false
+  tags:
+    - nginx
+
+- name: Get certificates from Let's Encrypt webroot
+  ansible.builtin.command:
+    cmd: |
+      certbot certonly --webroot -w {{ jenkins_data_dir }}/nginx/www -d {{ jenkins_nginx_domain }}
+      --non-interactive --agree-tos -m {{ jenkins_certbot_admin_email }}
+      --keep-until-expiring --force-renewal
+    creates: "/etc/letsencrypt/live/{{ jenkins_nginx_domain }}/fullchain.pem"
+  when: jenkins_nginx_check.status in [200, 404]
+  retries: 3
+  delay: 5
+  tags:
+    - nginx
+
+- name: Get certificates from Let's Encrypt standalone
+  ansible.builtin.command:
+    cmd: |
+      certbot certonly --standalone -d {{ jenkins_nginx_domain }}
+      --non-interactive --agree-tos -m {{ jenkins_certbot_admin_email }}
+      --keep-until-expiring --force-renewal
+    creates: "/etc/letsencrypt/live/{{ jenkins_nginx_domain }}/fullchain.pem"
+  when: jenkins_nginx_check.status not in [200, 404]
+  retries: 3
+  delay: 5
+  tags:
+    - nginx
+
+- name: Copy certificates
+  ansible.builtin.copy:
+    src: "/etc/letsencrypt/live/{{ jenkins_nginx_domain }}/{{ item }}"
+    dest: "{{ jenkins_data_dir }}/nginx/certs/{{ item }}"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  loop:
+    - fullchain.pem
+    - privkey.pem
+  notify: Restart services
+  tags:
+    - nginx
+
+- name: Copy Nginx config
+  ansible.builtin.template:
+    src: nginx/nginx.conf.j2
+    dest: "{{ jenkins_data_dir }}/nginx/conf.d/nginx.conf"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  notify: Restart services
+  tags:
+    - nginx
+
+- name: Get Docker gid from current host
+  ansible.builtin.shell: |
+    stat -c '%g' /var/run/docker.sock
+  register: jenkins_docker_gid
+  changed_when: false
+  tags:
+    - jenkins
+
+- name: Copy Docker files
+  ansible.builtin.template:
+    src: "docker/{{ item }}.j2"
+    dest: "{{ jenkins_data_dir }}/{{ item }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  loop:
+    - Dockerfile
+    - docker-compose.yml
+  notify: Restart services
+  tags:
+    - jenkins
+    - nginx
+
+- name: Start services
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ jenkins_data_dir }}"
+  changed_when: false
+  tags:
+    - jenkins
+    - nginx

@@ -1,0 +1,11 @@
+---
+
+jenkins_data_dir: /opt/jenkins
+
+jenkins_image_tag: 2.516.2-lts-jdk21
+
+jenkins_certbot_admin_email: ""
+
+jenkins_nginx_image_tag: 1.29.1-alpine-perl
+
+jenkins_nginx_domain: ""
