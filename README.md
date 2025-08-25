@@ -6,7 +6,7 @@ Infrastructure automation repository
 
 ```
 nix-automation/
-├── ansible/ # Root Ansible automation directory
+├── ansible/
 │   ├── inventory/
 │   │   └── dev/
 │   │       ├── group_vars/
@@ -14,6 +14,7 @@ nix-automation/
 │   │       │       └── main.yml
 │   │       └── hosts.yml
 │   ├── playbooks/
+│   │   └── configure_jenkins.yml
 │   ├── roles/
 │   │   └── jenkins/
 │   │       ├── defaults/
@@ -28,7 +29,6 @@ nix-automation/
 │   │           │   └── Dockerfile.j2
 │   │           └── nginx/
 │   │               └── nginx.conf.j2
-│   ├── configure_jenkins.yml # Jenkins playbook
 │   └── ansible.cfg
 ├── .gitignore
 └── README.md
