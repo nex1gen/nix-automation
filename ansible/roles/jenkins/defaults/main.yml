@@ -2,10 +2,25 @@
 
 jenkins_data_dir: /opt/jenkins
 
+jenkins_docker_registry: nix-docker.registry.twcstorage.ru
+
+jenkins_image_repo: ci/jenkins/jenkins
+
 jenkins_image_tag: 2.516.2-lts-jdk21
 
 jenkins_certbot_admin_email: ""
 
-jenkins_nginx_image_tag: 1.29.1-alpine-perl
+jenkins_certbot_force_renewal: false
+
+jenkins_nginx_image_repo: ci/nginx/nginx
+
+jenkins_nginx_image_tag: 1.29.1-alpine
 
 jenkins_nginx_domain: ""
+
+jenkins_nginx_ssl_protocols:
+  - TLSv1.2
+  - TLSv1.3
+
+jenkins_nginx_ssl_ciphers: |
+  "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
