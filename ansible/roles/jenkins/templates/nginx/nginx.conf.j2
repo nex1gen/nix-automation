@@ -1,96 +1,116 @@
+server_tokens                         off;
+
 upstream jenkins {
-  keepalive 32; # keepalive connections
-  server jenkins:8080;
+    keepalive                         32; # keepalive connections
+    server                            jenkins:8080;
 }
 
 # required for Jenkins websocket agents
 map $http_upgrade $connection_upgrade {
-  default upgrade;
-  '' close;
+    default                           upgrade;
+    ''                                close;
 }
 
 server {
+    listen                            80;
+    server_name                       {{ jenkins_nginx_domain }};
 
-    listen              80;
+    location /health {
+        return                        200 "Healthy";
+    }
 
-    server_name         {{ jenkins_nginx_domain }};
-    
     location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-
+        root                          /var/www/certbot;
     }
 
     location / {
-        return 301      https://$host$request_uri;
-
+        return                        301 https://$host$request_uri;
     }
-
 }
 
 server {
+    listen                            443 ssl;
+    server_name                       {{ jenkins_nginx_domain }};
 
-    listen              443 ssl;
+    ssl_certificate                   /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key               /etc/nginx/certs/privkey.pem;
 
-    server_name         {{ jenkins_nginx_domain }};
+    ssl_protocols                     {{ jenkins_nginx_ssl_protocols | join(' ') }};
+    ssl_prefer_server_ciphers         on;
+    ssl_ciphers                       {{ jenkins_nginx_ssl_ciphers }};
 
-    ssl_certificate     /etc/nginx/certs/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    add_header                        Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header                        X-Content-Type-Options "nosniff" always;
+    add_header                        X-Frame-Options "SAMEORIGIN" always;
+    add_header                        Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header                        Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    if ($request_method !~ ^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$) {
+        return                        405;
+    }
 
     # this is the Jenkins web root directory
     # (mentioned in the output of "systemctl cat jenkins")
-    root                /var/run/jenkins/war/;
+    root                              /var/run/jenkins/war/;
 
-    access_log          /var/log/nginx/jenkins.access.log;
-    error_log           /var/log/nginx/jenkins.error.log;
+    access_log                        /var/log/nginx/jenkins.access.log;
+    error_log                         /var/log/nginx/jenkins.error.log;
 
     # pass through headers from Jenkins that Nginx considers invalid
-    ignore_invalid_headers off;
+    ignore_invalid_headers            off;
 
     location ~ "^\/static\/[0-9a-fA-F]{8}\/(.*)$" {
-    # rewrite all static files into requests to the root
-    # E.g /static/12345678/css/something.css will become /css/something.css
-    rewrite "^\/static\/[0-9a-fA-F]{8}\/(.*)" /$1 last;
-
+        # rewrite all static files into requests to the root
+        # E.g /static/12345678/css/something.css will become /css/something.css
+        rewrite                       "^\/static\/[0-9a-fA-F]{8}\/(.*)" /$1 last;
     }
 
     location /userContent {
         # have Nginx handle all the static requests to userContent folder
         # this is the $JENKINS_HOME dir
-        root /var/lib/jenkins/;
+        root                          /var/lib/jenkins/;
         if (!-f $request_filename){
             # this file does not exist, might be a directory or a /**view** url
-            rewrite (.*) /$1 last;
+            rewrite                   (.*) /$1 last;
             break;
         }
 
-        sendfile on;
-
+        sendfile                      on;
     }
 
     location / {
-        sendfile off;
-        proxy_pass         http://jenkins;
-        proxy_redirect     default;
-        proxy_http_version 1.1;
+        sendfile                      off;
+        proxy_pass                    http://jenkins;
+        proxy_redirect                default;
+        proxy_http_version            1.1;
 
-        # Required for Jenkins websocket agents
-        proxy_set_header   Connection        $connection_upgrade;
-        proxy_set_header   Upgrade           $http_upgrade;
+        # required for Jenkins websocket agents
+        proxy_set_header              Connection        $connection_upgrade;
+        proxy_set_header              Upgrade           $http_upgrade;
 
-        proxy_set_header   Host              $http_host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_max_temp_file_size 0;
+        proxy_hide_header             X-Content-Type-Options;
+        proxy_hide_header             X-Frame-Options;
+        proxy_hide_header             Referrer-Policy;
+
+        proxy_hide_header             X-Jenkins;
+        proxy_hide_header             X-Hudson;
+        proxy_hide_header             X-Instance-Identity;
+        proxy_hide_header             X-Jenkins-Session;
+
+        proxy_set_header              Host              $http_host;
+        proxy_set_header              X-Real-IP         $remote_addr;
+        proxy_set_header              X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header              X-Forwarded-Proto $scheme;
+
+        proxy_max_temp_file_size      0;
 
         # this is the maximum upload size
-        client_max_body_size       10m;
-        client_body_buffer_size    128k;
+        client_max_body_size          10m;
+        client_body_buffer_size       128k;
 
-        proxy_connect_timeout      90;
-        proxy_send_timeout         90;
-        proxy_read_timeout         90;
-        proxy_request_buffering    off; # Required for HTTP CLI commands
+        proxy_connect_timeout         90;
+        proxy_send_timeout            90;
+        proxy_read_timeout            90;
+        proxy_request_buffering       off; # Required for HTTP CLI commands
     }
-
 }

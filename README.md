@@ -25,8 +25,7 @@ nix-automation/
 │   │       │   └── main.yml
 │   │       └── templates/
 │   │           ├── docker/
-│   │           │   ├── docker-compose.yml.j2
-│   │           │   └── Dockerfile.j2
+│   │           │   └── docker-compose.yml.j2
 │   │           └── nginx/
 │   │               └── nginx.conf.j2
 │   └── ansible.cfg
@@ -52,13 +51,28 @@ The Jenkins role automates deployment of Jenkins server and Nginx reverse proxy 
 
 jenkins_data_dir: /opt/jenkins
 
+jenkins_docker_registry: nix-docker.registry.twcstorage.ru
+
+jenkins_image_repo: ci/jenkins/jenkins
+
 jenkins_image_tag: 2.516.2-lts-jdk21
 
 jenkins_certbot_admin_email: ""
 
-jenkins_nginx_image_tag: 1.29.1-alpine-perl
+jenkins_certbot_force_renewal: false
+
+jenkins_nginx_image_repo: ci/nginx/nginx
+
+jenkins_nginx_image_tag: 1.29.1-alpine
 
 jenkins_nginx_domain: ""
+
+jenkins_nginx_ssl_protocols:
+  - TLSv1.2
+  - TLSv1.3
+
+jenkins_nginx_ssl_ciphers: |
+  "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
 ```
 
 ### Example Inventory (ansible/inventory/dev/hosts.yml)
@@ -67,13 +81,15 @@ jenkins_nginx_domain: ""
 ---
 
 all:
+  hosts:
+    jenkins01:
+      ansible_user: your_user
+      ansible_host: your.jenkins.domain.com
+      ansible_python_interpreter: /usr/bin/python3.12
   children:
     jenkins:
       hosts:
         jenkins01:
-          ansible_user: user
-          ansible_host: your.jenkins.domain.com
-          ansible_python_interpreter: /usr/bin/python3.12
 ```
 
 ## Quick Start
@@ -106,7 +122,7 @@ jenkins_nginx_domain: "your.jenkins.domain.com"
 5. Run the playbook:
 
 ```bash
-ansible-playbook -i inventory/dev/hosts.yml configure_jenkins.yml
+ansible-playbook -i inventory/dev/hosts.yml playbooks/configure_jenkins.yml
 ```
 
 ## Usage
@@ -114,8 +130,8 @@ ansible-playbook -i inventory/dev/hosts.yml configure_jenkins.yml
 Deploy with specific tags:
 
 ```bash
-ansible-playbook -i inventory/dev/hosts.yml configure_jenkins.yml --tags "jenkins"
-ansible-playbook -i inventory/dev/hosts.yml configure_jenkins.yml --tags "nginx"
+ansible-playbook -i inventory/dev/hosts.yml playbooks/configure_jenkins.yml --tags "jenkins"
+ansible-playbook -i inventory/dev/hosts.yml playbooks/configure_jenkins.yml --tags "nginx"
 ```
 
 Available tags:
